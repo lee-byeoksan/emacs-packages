@@ -1,0 +1,13 @@
+var/
+*.elc
+.DS_Store
+__pycache__/
+
+/native/target/
+
+# Disposable documentation-era diagnostics belong under var/.
+/docs/evidence/
+/docs/gui-evidence/
+/docs/cli-validation-evidence/
+/docs/terminal-evidence/
+/docs/*benchmark*.json

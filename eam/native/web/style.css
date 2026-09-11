@@ -1,0 +1,75 @@
+:root{--icon-size:20px;--text-size:13px;font-size:var(--text-size);color-scheme:dark;--bg:#111111;--fg:#eeeeea;--line:#72726c;--muted:#aaaaa3;--panel:#1b1b1b;--hover:#30302d;--error:#ff9999;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--bg);color:var(--fg)}
+:root[data-theme=light]{color-scheme:light;--bg:#f4f2e9;--fg:#161616;--line:#55554f;--muted:#5a5a53;--panel:#e8e6dd;--hover:#d9d7cc;--error:#a21919}
+*{box-sizing:border-box}
+html{height:100%;overflow:hidden}
+body{margin:0;width:100%;height:var(--app-height,100dvh);padding:env(safe-area-inset-top) max(5px,env(safe-area-inset-right)) max(3px,env(safe-area-inset-bottom)) max(5px,env(safe-area-inset-left));display:flex;flex-direction:column;overflow:hidden}
+header,.heading,.row,.header-actions,.terminal-tools,.scroll-tools{display:flex;align-items:center;justify-content:space-between;gap:5px}
+header{flex:none;height:46px;min-height:46px;padding:6px 8px;border-bottom:2px solid var(--fg)}
+#sessionName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-size);font-weight:700}
+.header-actions{gap:6px;flex:none}
+button,input,select,textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:0;padding:5px 8px}
+button{cursor:pointer;min-height:26px;font-size:var(--text-size);touch-action:manipulation;white-space:nowrap}
+@media(hover:hover){button:hover{background:var(--hover)}}
+button:active{background:var(--fg);color:var(--bg)}button:disabled{opacity:.3;cursor:default}
+button:focus-visible,summary:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-offset:1px}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:700}
+.icon-button{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:2px;flex:none;font-size:18px;border-color:transparent}
+button svg{display:block;flex:none;width:var(--icon-size);height:var(--icon-size);fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:square;stroke-linejoin:miter;pointer-events:none}
+.connection-state{display:block;flex:none;width:7px;height:7px;border-radius:50%;background:#ef4444;margin:0 3px}
+.connection-state[data-connected=true]{background:#22c55e}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap!important;border:0!important}
+#status{display:none}
+header .icon-button{width:32px;height:32px;padding:5px}
+#status[data-error=true]{pointer-events:none;display:block;position:absolute;z-index:5;top:48px;left:8px;right:8px;max-height:5em;overflow:auto;margin:0;padding:6px;background:var(--bg);border:2px solid var(--error);color:var(--error);font-size:var(--text-size)}
+#home{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:8px}
+h2{font-size:var(--text-size);margin:12px 0}h3{font-size:var(--text-size)}
+#sessions button{width:100%;display:block;text-align:left;margin:6px 0;padding:9px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+details{margin-top:16px;border-top:2px solid var(--fg);padding-top:10px}summary{cursor:pointer;padding:6px 0;font-size:var(--text-size)}
+.row{justify-content:flex-start;flex-wrap:wrap;margin:8px 0}
+input,textarea{min-width:0;font-size:var(--text-size)}input{max-width:100%}
+#path{overflow-wrap:anywhere;font-size:var(--text-size);color:var(--muted)}
+#folders{max-height:28dvh;overflow:auto;margin:8px 0}#folders button{display:block;width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere}
+#workspace{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding-top:3px}
+/* FitAddon must measure the content box: no padding/border on its parent. */
+#terminal{position:relative;flex:1;min-height:0;overflow:hidden;padding:0;border:0;background:var(--bg);touch-action:pan-x pinch-zoom}
+#terminal .xterm{height:100%}#terminal .xterm-viewport{overscroll-behavior:contain;scrollbar-width:auto}
+.terminal-tools{flex:none;height:26px}.terminal-tools button{display:inline-flex;align-items:center;justify-content:center;height:26px;min-height:26px;padding:1px 8px;font-size:16px}
+.scroll-tools{gap:8px}#latest:not(:disabled){border-color:var(--fg)}
+#keys{flex:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+#keys button{display:flex;align-items:center;justify-content:center;height:26px;min-height:26px;padding:1px;font-size:var(--text-size)}
+#composePanel{position:fixed;inset:auto;left:50%;top:calc(var(--app-height,100dvh)/2);transform:translate(-50%,-50%);margin:0;width:min(600px,calc(100% - 16px));height:min(400px,calc(var(--app-height,100dvh) - 16px));max-height:calc(var(--app-height,100dvh) - 16px);padding:10px;border:2px solid var(--fg);background:var(--bg);color:var(--fg)}
+#composePanel[open]{display:flex;flex-direction:column;gap:8px}#composePanel::backdrop{background:#0009}
+#composePanel .heading{flex:none}#composeTitle{margin:0}
+#composer{flex:1;min-height:40px;width:100%;resize:none;padding:10px;line-height:1.6}
+#composeStatus{flex:none;margin:0;font-size:var(--text-size);color:var(--error)}#composeStatus:empty{display:none}
+#paste{flex:none;min-height:30px}
+[hidden]{display:none!important}
+
+button .scroll-icon{fill:currentColor;stroke:none}
+.terminal-tools .icon-button{padding:2px}
+.terminal-tools #editMode{font-size:var(--text-size);min-width:52px}
+#editMode[aria-checked=true]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+#latency{flex:none;font-size:var(--text-size);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+
+/* xterm's scrollbar is absolutely positioned; reserve no text columns for it. */
+#terminal .xterm-scrollable-element > .scrollbar.vertical{width:8px!important;right:0!important;left:auto!important;background:transparent!important}
+#terminal .xterm-scrollable-element > .scrollbar.vertical > .slider{width:6px!important;left:auto!important;right:0!important}
+
+#keys button[data-key=enter]{display:flex;align-items:center;justify-content:center}
+
+
+#liveCursor{position:absolute;width:2px;background:var(--fg);box-shadow:0 0 0 1px var(--bg);pointer-events:none;z-index:4}
+
+#keys button[data-key=left]{grid-column:1}
+
+body{position:fixed;top:var(--app-top,0px);left:0;right:0}
+body[data-keyboard=true] header{height:38px;min-height:38px;padding:2px 8px}
+body[data-keyboard=true] #themeToggle,body[data-keyboard=true] #fullscreen{display:none}
+body[data-keyboard=true] #workspace{gap:4px}
+#composePanel{top:calc(var(--app-top,0px) + var(--app-height,100dvh)/2)}
+
+#outputPanel{position:fixed;inset:auto;left:50%;top:calc(var(--app-top,0px) + var(--app-height,100dvh)/2);transform:translate(-50%,-50%);margin:0;width:min(720px,calc(100% - 16px));height:calc(var(--app-height,100dvh) - 16px);max-height:none;padding:10px;border:2px solid var(--fg);background:var(--bg);color:var(--fg)}
+#outputPanel[open]{display:flex;flex-direction:column;gap:8px}#outputPanel::backdrop{background:#0009}
+#outputTitle{margin:0}#outputText{flex:1;min-height:0;width:100%;resize:none;user-select:text;touch-action:auto;white-space:pre-wrap;overflow:auto}
+#outputPanel .row{flex:none;margin:0;gap:8px}#selectOutput{margin-left:auto}

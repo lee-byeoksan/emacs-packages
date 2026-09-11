@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#111720">
+<title>EAM Remote</title>
+<link rel="stylesheet" href="/xterm.css">
+<link rel="stylesheet" href="/style.css">
+<body>
+<header>
+  <span id="connectionState" class="connection-state" role="status" aria-label="연결 끊김" title="연결 끊김"></span>
+  <output id="latency" aria-label="왕복 응답시간" title="왕복 응답시간">—</output>
+  <span id="sessionName" title="EAM">EAM</span>
+  <nav class="header-actions" aria-label="세션 제어">
+    <button id="themeToggle" class="icon-button" aria-label="라이트 모드" title="라이트 모드"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg></button>
+    <button id="fullscreen" class="icon-button" aria-label="전체화면" title="전체화면" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+    <button id="detach" class="icon-button" aria-label="연결 해제 · PC로 돌려주기" title="연결 해제 · PC로 돌려주기" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l2-2a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0M9 17l-2 2a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0M8 3v3M3 8h3M16 18v3M18 16h3"/></svg></button>
+    <button id="reconnect" class="icon-button" aria-label="재연결" title="재연결" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></svg></button>
+    <button id="sessionList" class="icon-button" aria-label="세션 목록" title="세션 목록" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h13M8 12h13M8 19h13M3 5h.01M3 12h.01M3 19h.01"/></svg></button>
+  </nav>
+</header>
+<p id="status" role="status">PC의 세션을 이어서 작업하세요.</p>
+<section id="login" hidden><label>접속 토큰 <input id="token" type="password" autocomplete="off"></label><button id="loginButton">접속</button></section>
+<main id="home" hidden>
+  <div class="heading"><h2>실행 중인 세션</h2><button id="refresh" class="icon-button" aria-label="새로고침" title="새로고침"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 8a8 8 0 1 0 0 8M20 3v5h-5"/></svg></button></div><div id="sessions"></div>
+  <details><summary>새 세션 시작</summary><h3>실행 디렉터리</h3><p id="path"></p><button id="parent" class="icon-button" aria-label="상위 폴더" title="상위 폴더"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V4m-6 6 6-6 6 6"/></svg></button><div id="folders"></div><div class="row"><input id="folderName" aria-label="새 폴더 이름" placeholder="새 폴더 이름"><button id="mkdir" class="icon-button" aria-label="폴더 생성" title="폴더 생성"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18"/></svg></button></div><div class="row"><select id="provider" aria-label="Provider"><option>Claude</option><option>Codex</option></select><button id="start">이 폴더에서 시작</button></div></details>
+</main>
+<section id="workspace" hidden>
+  <p id="notice" class="sr-only" role="status">연결 중…</p>
+  <div id="terminal" aria-label="세션 터미널"></div>
+  <div class="terminal-tools" role="group" aria-label="화면 스크롤과 입력">
+    <div class="scroll-tools"><button id="pageUp" aria-label="이전 출력 한 화면" title="이전 출력 한 화면"><svg class="scroll-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18l9-12 9 12z"/></svg></button><button id="pageDown" aria-label="다음 출력 한 화면" title="다음 출력 한 화면"><svg class="scroll-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18L12 18z"/></svg></button><button id="latest" aria-label="최신 출력" title="최신 출력"><svg class="scroll-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2h18l-9 9zM3 13h18l-9 9z"/></svg></button></div>
+    <button id="selectOutput" class="icon-button" aria-label="출력 선택·복사" title="출력 선택·복사"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h13v13H8zM16 8V3H3v13h5"/></svg></button>
+    <button id="editMode" role="switch" aria-checked="false" aria-label="라이브 입력" title="버퍼 입력 · 클릭하여 라이브 입력으로 전환">버퍼</button>
+  </div>
+  <div id="keys" role="group" aria-label="터미널 키">
+    <button data-key="escape">Esc</button><button data-key="interrupt">C-c</button><button data-key="eof">C-d</button><button data-key="backtab">S-tab</button>
+    <button data-key="left" aria-label="왼쪽 화살표"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H4m6-6-6 6 6 6"/></svg></button><button data-key="up" aria-label="위쪽 화살표"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V4m-6 6 6-6 6 6"/></svg></button><button data-key="down" aria-label="아래쪽 화살표"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16m-6-6 6 6 6-6"/></svg></button><button data-key="right" aria-label="오른쪽 화살표"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"/></svg></button>
+    <button data-key="enter" class="primary" aria-label="Enter" title="Enter"><svg class="enter-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v10H4m6-6-6 6 6 6"/></svg></button>
+  </div>
+</section>
+<dialog id="composePanel" aria-labelledby="composeTitle">
+  <div class="heading"><h2 id="composeTitle">요청 작성</h2><button id="composeClose" class="icon-button" aria-label="작성창 닫기" title="작성창 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg></button></div>
+  <textarea id="composer" aria-label="요청 입력" placeholder="메시지" autofocus></textarea>
+  <p id="composeStatus" role="status"></p>
+  <button id="paste" class="primary">붙여넣기 ↗</button>
+</dialog>
+<dialog id="outputPanel" aria-labelledby="outputTitle">
+  <div class="heading"><h2 id="outputTitle">출력 선택·복사</h2><button id="outputClose" class="icon-button" aria-label="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg></button></div>
+  <textarea id="outputText" readonly aria-label="복사할 출력" spellcheck="false"></textarea>
+  <div class="row"><button id="copySelection">선택 복사</button><button id="copyAll">전체 복사</button><span id="copyStatus" role="status"></span></div>
+</dialog>
+<script src="/xterm.js"></script><script src="/fit.js"></script><script src="/app.js"></script>
+</body></html>
