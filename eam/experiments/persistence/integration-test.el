@@ -1,0 +1,56 @@
+;;; -*- lexical-binding: t; -*-
+(require 'ert)
+(load (expand-file-name "commands-test.el" (file-name-directory load-file-name)) nil t)
+(unless (ert-test-boundp 'eam-worktree-create-isolate-and-select)
+  (load (expand-file-name "../../tests/worktree-test.el" (file-name-directory load-file-name)) nil t))
+(ert-deftest eai-persistent-worktree-detach-and-reattach ()
+  (save-window-excursion
+    (let* ((root (make-temp-file "eai-integration-" t))
+           (eam-directory (file-name-as-directory root))
+           (repo (eam-worktree-test-repo root))
+           (work (expand-file-name "분리 worktree" root))
+           (path (expand-file-name "persistent/session" root))
+           (eam-persistent--readers (make-hash-table :test #'equal))
+           (eam-notifications--entries nil)
+           (before (buffer-list)) info session)
+      (unwind-protect
+          (progn
+            (eam-worktree--create repo work "persistent-test" "HEAD")
+            (setq info (eam-persistent--call
+                        "start" `((session . ,path) (provider . "Fake")
+                                  (executable . ,(executable-find "python3"))
+                                  (args . ["-c" "import time; print('READY',flush=True); time.sleep(30)"])
+                                  (directory . ,work))))
+            (eai-command-wait (lambda () (file-exists-p (alist-get 'events info))))
+            (should-not (alist-get 'archive info))
+            (setq session (eam-attach path))
+            (should-not (eam-terminal-file session))
+            (delete-other-windows)
+            (with-current-buffer (eam-terminal-output session)
+              (eam-detach))
+            ;; No Emacs CLI process remains to protect the detached worktree.
+            (should-error (eam-worktree--remove repo work))
+            (should (file-directory-p work))
+            (eai-command-wait
+             (lambda () (zerop (alist-get 'attached_clients
+                              (alist-get 'status (eam-persistent--call "inspect" `((session . ,path))))))))
+            (eam-attach path)
+            (setq session eam-terminal--current)
+            (eai-command-wait
+             (lambda ()
+               (with-current-buffer (eam-terminal-output session)
+                 (set-window-buffer (selected-window) (current-buffer))
+                 (ghostel--redraw-now (current-buffer) t)
+                 (string-match-p "READY" (buffer-string)))))
+            (eam-detach)
+            (eam-persistent--call "stop" `((session . ,path)))
+            (eam-worktree--remove repo work)
+            (should-not (file-exists-p work)))
+        (dolist (buffer (cl-set-difference (buffer-list) before))
+          (when (buffer-live-p buffer)
+            (with-current-buffer buffer (set-buffer-modified-p nil) (kill-buffer buffer))))
+        (when info
+          (eam-persistent--call "stop" `((session . ,path)))
+          (delete-directory (alist-get 'runtime info) t))
+        (server-force-delete)
+        (delete-directory root t)))))

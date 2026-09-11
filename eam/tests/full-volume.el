@@ -1,0 +1,42 @@
+;;; -*- lexical-binding: t; -*-
+(load-file (expand-file-name "tests/terminal-test.el"))
+(ert-deftest eam-real-full-volume ()
+  (let* ((eam-directory (make-temp-file "ai-full-normal-" t))
+         (normal eam-directory)
+         (volume (getenv "EMACS_AI_FULL_VOLUME"))
+         (fixture (expand-file-name "tests/terminal-fixture.py" eam-terminal-test-root))
+         (healthy (eam-terminal-start "healthy" (eam--executable "python3")
+                                           (list fixture (expand-file-name "healthy.jsonl" normal)) normal))
+         failed prefix)
+    (unwind-protect
+        (progn
+          (let ((eam-directory (file-name-as-directory volume)))
+            (setq failed (eam-terminal-start "full" (eam--executable "python3")
+                                                 (list fixture (expand-file-name "failed.jsonl" normal)) normal)))
+          (dolist (s (list healthy failed))
+            (eam-terminal-test-wait
+             (lambda () (with-current-buffer (eam-terminal-output s)
+                          (ghostel--mode-enabled ghostel--term 2004)))))
+          (setq prefix (with-temp-buffer (insert-file-contents-literally (eam-terminal-file failed)) (buffer-string)))
+          (should (= 0 (call-process (eam--executable "python3") nil nil nil
+                                     (expand-file-name "tests/fill-test-volume.py" eam-terminal-test-root) volume)))
+          (eam-terminal--filter failed (eam-terminal-process failed)
+                                     (concat "FULL_VOLUME_CHUNK" (make-string (* 1024 1024) ?x)))
+          (should (eam-terminal-error failed))
+          (message "REAL_VOLUME_ERROR: %s" (eam-terminal-error failed))
+          (should-not (process-live-p (eam-terminal-process failed)))
+          (with-current-buffer (eam-terminal-output failed)
+            (should-not (string-match-p "FULL_VOLUME_CHUNK" (buffer-string))))
+          (should (string-prefix-p prefix (with-temp-buffer
+                                           (insert-file-contents-literally (eam-terminal-file failed))
+                                           (buffer-string))))
+          (with-current-buffer (eam-terminal-output healthy) (eam-terminal-key "return"))
+          (eam-terminal-test-wait
+           (lambda () (with-temp-buffer (insert-file-contents-literally (eam-terminal-file healthy))
+                        (search-forward "ENTER" nil t))))
+          (should (process-live-p (eam-terminal-process healthy))))
+      (dolist (s (list failed healthy))
+        (when (and s (buffer-live-p (eam-terminal-output s)))
+          (with-current-buffer (eam-terminal-output s) (eam-detach))))
+      (server-force-delete)
+      (delete-directory normal t))))

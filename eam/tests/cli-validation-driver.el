@@ -1,0 +1,83 @@
+;;; cli-validation-driver.el --- Explicit real-CLI validation harness -*- lexical-binding: t; -*-
+;; Deliberately excluded from test.sh: starts an authenticated interactive CLI.
+(require 'eam-terminal)
+(defvar ai-validation-session nil)
+(defvar ai-validation-dir (getenv "EMACS_AI_VALIDATION_DIR"))
+(defvar ai-validation-provider (getenv "EMACS_AI_VALIDATION_PROVIDER"))
+(defun ai-validation-write (name text)
+  "Publish one complete snapshot file for external readers."
+  (let* ((path (expand-file-name name ai-validation-dir))
+         (staging (make-temp-file (concat path ".") nil ".tmp")))
+    (unwind-protect
+        (let ((coding-system-for-write 'utf-8-unix))
+          (write-region text nil staging nil 'silent)
+          (rename-file staging path t))
+      (when (file-exists-p staging) (delete-file staging)))))
+(defun ai-validation-snapshot ()
+  (when (and ai-validation-session
+             (buffer-live-p (eam-terminal-output ai-validation-session)))
+    (let ((s ai-validation-session))
+      (with-current-buffer (eam-terminal-output s)
+        (ghostel--redraw-now (current-buffer) t)
+        (ai-validation-write "screen.txt" (buffer-string))
+        (ai-validation-write "state.json"
+          (json-encode
+                   `((snapshot_at . ,(float-time))
+                     (emacs_pid . ,(emacs-pid))
+                     (cli_pid . ,(process-id (eam-terminal-process s)))
+                     (status . ,(symbol-name (process-status (eam-terminal-process s))))
+                     (raw_file . ,(eam-terminal-file s))
+                     (error . ,(eam-terminal-error s))
+                     (socket . ,(expand-file-name server-name server-socket-dir)))))))))
+(defun ai-validation-key (key &optional mods)
+  (with-current-buffer (eam-terminal-output ai-validation-session)
+    (eam-terminal-key key mods)))
+(defun ai-validation-paste-file (file)
+  (let ((text (with-temp-buffer (insert-file-contents file) (buffer-string))))
+    (with-current-buffer (eam-terminal-output ai-validation-session)
+      (eam-terminal--record ai-validation-session "validation-paste" text)
+      (ghostel-paste-string text))))
+(defun ai-validation-editor-buffer ()
+  "Find the one file currently being edited for this test CLI."
+  (let ((buffers (cl-remove-if-not
+                  (lambda (buffer) (buffer-local-value 'server-buffer-clients buffer))
+                  (buffer-list))))
+    (unless (= (length buffers) 1) (error "Expected one CLI editor buffer, got %d" (length buffers)))
+    (car buffers)))
+(defun ai-validation-editor-read (file)
+  (with-current-buffer (ai-validation-editor-buffer)
+    (let ((coding-system-for-write 'utf-8-unix))
+      (write-region (point-min) (point-max) file nil 'silent))))
+(defun ai-validation-editor-write (file)
+  (let ((text (with-temp-buffer (insert-file-contents file) (buffer-string))))
+    (with-current-buffer (ai-validation-editor-buffer)
+      (erase-buffer) (insert text) (save-buffer) (server-edit))))
+(let* ((workspace (or (getenv "EMACS_AI_VALIDATION_WORKSPACE")
+                      (expand-file-name "workspace" ai-validation-dir)))
+       (resume (getenv "EMACS_AI_VALIDATION_RESUME"))
+       (sid (getenv "EMACS_AI_VALIDATION_SESSION_ID"))
+       (args (cond
+              ((equal ai-validation-provider "fixture")
+               (list (expand-file-name "tests/terminal-fixture.py")
+                     (expand-file-name "received.jsonl" ai-validation-dir)))
+              ((equal ai-validation-provider "claude")
+               (append (list "--permission-mode" "manual")
+                         (when sid (list (if resume "--resume" "--session-id") sid))))
+              ((equal ai-validation-provider "codex")
+               (append (when resume (list "resume" resume))
+                       (list "-c" (concat "projects={" (json-encode-string workspace) "={trust_level=\"trusted\"}}")
+                             "--sandbox" (or (getenv "EMACS_AI_VALIDATION_SANDBOX") "workspace-write")
+                             "--ask-for-approval" "on-request"
+                             "-c" "approvals_reviewer=\"user\"")))
+              (t (error "Unknown validation provider")))))
+  (setq ai-validation-session
+        (eam-terminal-start
+         ai-validation-provider (eam--executable
+                                 (if (equal ai-validation-provider "fixture") "python3"
+                                   ai-validation-provider))
+         (append args (when-let* ((model (getenv "EMACS_AI_VALIDATION_MODEL")))
+                        (list "--model" model))) workspace)))
+(set-frame-size (selected-frame) 120 50)
+(delete-other-windows)
+(run-at-time 0 .5 #'ai-validation-snapshot)
+(while t (accept-process-output nil .1))

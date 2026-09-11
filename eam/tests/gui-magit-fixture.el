@@ -1,0 +1,11 @@
+;;; gui-magit-fixture.el --- Installed review with original Magit -*- lexical-binding: t; -*-
+(require 'magit)
+(require 'eam-app)
+(let ((default-directory (file-name-as-directory (getenv "EMACS_AI_MAGIT_FIXTURE"))))
+  (setq eam-directory (expand-file-name "records/" default-directory))
+  (eam-terminal-start "Magit-review" (executable-find "python3")
+                           '("-c" "print('GUI review only; no AI')") default-directory)
+  (eam-keys-mode 1)
+  (magit-diff-staged nil '("--find-renames"))
+  (delete-other-windows)
+  (goto-char (point-min)))

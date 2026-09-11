@@ -1,0 +1,40 @@
+;;; -*- lexical-binding: t; -*-
+(load-file (expand-file-name "tests/terminal-test.el"))
+(ert-deftest eam-storage-permission-and-partial-write ()
+  (dolist (phase '(permission partial))
+    (let* ((eam-directory (make-temp-file "ai-storage-" t))
+           (s (eam-terminal-start
+               "storage" (eam--executable "python3")
+               (list (expand-file-name "tests/terminal-fixture.py" eam-terminal-test-root)
+                     (expand-file-name "received.jsonl" eam-directory)) eam-directory))
+           (file (eam-terminal-file s))
+           (writer (symbol-function 'write-region)) before)
+      (unwind-protect
+          (progn
+            (eam-terminal-test-wait
+             (lambda () (with-current-buffer (eam-terminal-output s)
+                          (ghostel--mode-enabled ghostel--term 2004))))
+            (setq before (with-temp-buffer
+                           (insert-file-contents-literally file) (buffer-string)))
+            (if (eq phase 'permission)
+                (progn (set-file-modes file #o400)
+                       (eam-terminal--filter s (eam-terminal-process s) "PART_LOST"))
+              (cl-letf (((symbol-function 'write-region)
+                         (lambda (start end target &rest flags)
+                           (if (equal target file)
+                               (progn
+                                 (apply writer (substring start 0 4) end target flags)
+                                 (signal 'file-error '("Injected ENOSPC after partial write")))
+                             (apply writer start end target flags)))))
+                (eam-terminal--filter s (eam-terminal-process s) "PART_LOST")))
+            (should (eam-terminal-error s))
+            (should-not (process-live-p (eam-terminal-process s)))
+            (with-current-buffer (eam-terminal-output s)
+              (should-not (string-match-p "PART_LOST" (buffer-string))))
+            (should (equal (with-temp-buffer (insert-file-contents-literally file) (buffer-string))
+                           (concat before (if (eq phase 'partial) "PART" "")))))
+        (set-file-modes file #o600)
+        (when (buffer-live-p (eam-terminal-output s))
+          (with-current-buffer (eam-terminal-output s) (eam-detach)))
+        (server-force-delete)
+        (delete-directory eam-directory t)))))
