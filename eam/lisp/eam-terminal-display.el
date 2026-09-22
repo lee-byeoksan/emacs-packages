@@ -10,6 +10,7 @@ This setting affects only U+2800–U+28FF in EAM terminal output."
   :type '(choice (const :tag "Default fallback" nil) string) :group 'eam)
 
 (defvar eam-terminal--current)
+(defvar-local eam-terminal-display--corrected nil)
 
 (defun eam-terminal-display--braille (start end)
   "Apply Braille graphics font within the repainted range START to END.
@@ -50,17 +51,30 @@ Preserve terminal colors, and fit each glyph into one terminal cell."
             (put-text-property pos (1+ pos) 'display
                                `((min-width (1)) (height ,scale)))))))))
 
+(defun eam-terminal-display--after-render ()
+  "Correct the published repaint range before Ghostel consumes it."
+  (when (and (bound-and-true-p eam-terminal--current)
+             ghostel--repainted-region eam-terminal-braille-font)
+    (let ((key (list (buffer-chars-modified-tick)
+                     ghostel--repainted-region eam-terminal-braille-font)))
+      (unless (equal key eam-terminal-display--corrected)
+        (with-demoted-errors "EAM Braille display: %S"
+          (eam-terminal-display--braille
+           (max (point-min) (car ghostel--repainted-region))
+           (min (point-max) (cdr ghostel--repainted-region)))
+          (setq eam-terminal-display--corrected key))))))
+
 (defun eam-terminal-display--redraw (original &rest args)
   "Keep ORIGINAL renderer behavior and fix EAM Braille graphics afterward."
   (let ((rendered (apply original args)))
-    (when (and rendered (bound-and-true-p eam-terminal--current)
-               ghostel--repainted-region eam-terminal-braille-font)
-      (with-demoted-errors "EAM Braille display: %S"
-        (eam-terminal-display--braille
-         (max (point-min) (car ghostel--repainted-region))
-         (min (point-max) (cdr ghostel--repainted-region)))))
+    (when rendered (eam-terminal-display--after-render))
     rendered))
 
 (advice-add 'ghostel--redraw :around #'eam-terminal-display--redraw)
+;; Also cover automatic redraws that bypass advice on the native renderer.
+;; This Elisp post-render step runs before the repaint range is cleared.
+(when (fboundp 'ghostel--schedule-link-detection)
+  (advice-add 'ghostel--schedule-link-detection :before
+              #'eam-terminal-display--after-render))
 (provide 'eam-terminal-display)
 ;;; eam-terminal-display.el ends here

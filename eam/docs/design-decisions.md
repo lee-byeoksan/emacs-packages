@@ -39,6 +39,17 @@
 
 ## 점자 애니메이션의 macOS 폰트 호환 처리
 
+2026-09-22 Emacs 31.1 + Ghostel 20260920.730에서 재발을 확인했다.
+EAM 보정과 폰트는 로드되어 있었으며 직접 렌더링 테스트는 통과했지만,
+자동 갱신 화면에는 family 보정 없이 Apple Braille이 사용됐다. Emacs 버전만의
+원인으로 단정하지 않는다. native renderer advice 외에 Ghostel의 Elisp
+`ghostel--schedule-link-detection` 직전에도 보정을 연결했다. repaint 범위가
+소비되기 전에 처리하며 문자 변경 tick·범위·폰트가 같으면 중복 보정을 생략한다.
+개인 init.el이나 전역 fontset 수정은 없다. 실제 Emacs 31 GUI ERT 4개 통과,
+배치에서는 2개 통과·GUI 전용 2개 제외. 자동 갱신된 실제 EAM 버퍼에서도
+Apple Symbols 선택을 확인했다. Ghostel 내부 함수 의존은 남아 있으므로
+추후 버전에서도 GUI 후처리 회귀 테스트가 필요하다.
+
 2026-09-17 조사에서 일반 Ghostty는 정상, Ghostel 단독과 EAM 모두 Codex 입력창 효과가
 깨진다는 사용자 관찰이 있었다. 실제 GUI 속성 조회에서 효과가 U+2800–U+28FF 문자이고
 Apple Braille로 표시되며 Ghostel이 일부 문자를 두 칸으로 확장함을 확인했다.

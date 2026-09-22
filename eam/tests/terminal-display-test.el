@@ -56,3 +56,29 @@
         (setq eam-terminal-braille-font nil)
         (should (eam-terminal-display--redraw (lambda () t)))
         (should (= calls 1))))))
+
+(ert-deftest eam-display-post-render-covers-native-advice-bypass ()
+  (skip-unless (and (display-graphic-p)
+                    (find-font (font-spec :family "Apple Symbols"))
+                    (fboundp 'ghostel--schedule-link-detection)))
+  (save-window-excursion
+    (with-temp-buffer
+      (set-window-buffer (selected-window) (current-buffer))
+      (let ((term (ghostel--new 4 60 1000))
+            (eam-terminal--current t)
+            (eam-terminal-braille-font "Apple Symbols")
+            (ghostel-enable-url-detection nil)
+            (ghostel-enable-file-detection nil))
+        (dotimes (i 30)
+          (ghostel--write-vt term
+            (format "\e[H\e[38;2;%d;40;60m⠁⠀⣿\e[0m plain\e[K" i))
+          ;; Simulate the automatic path missing native-renderer advice.
+          (let ((eam-terminal--current nil)) (ghostel--redraw term))
+          (should-not (plist-get (get-text-property 1 'face) :family))
+          (ghostel--schedule-link-detection)
+          (should-not ghostel--repainted-region)
+          (should (equal (format "%s" (font-get (font-at 1) :family))
+                         "Apple Symbols"))
+          (should (equal (plist-get (get-text-property 1 'face) :foreground)
+                         (format "#%02x283c" i)))
+          (should (equal (car (get-text-property 1 'display)) '(min-width (1)))))))))
