@@ -7,6 +7,52 @@
     (last_input_at . ,activity) (last_output_at . 0)
     (notifications . ((seq . 2) (read_seq . ,(if unread 0 2)) (unread . ,unread))))))
 
+(ert-deftest eam-list-new-uses-selected-row-without-resuming ()
+  (let ((directory (make-temp-file "eam-list-한글 " t)))
+    (unwind-protect
+        (dolist (provider '("Codex" "Claude"))
+          (dolist (group '(nil t))
+            (with-temp-buffer
+              (eam-session-list-mode)
+              (let ((entry (eam-list-test-entry "old" directory "Old name" 20 t)) calls)
+                (setf (alist-get 'provider entry) provider
+                      (alist-get 'state entry) "interrupted"
+                      (alist-get 'temporary entry) t
+                      (alist-get 'resume_id entry) "old-conversation")
+                (setq eam-session-list--entries (list entry)
+                      eam-session-list--sort 'activity
+                      eam-session-list--group group
+                      eam-session-list--provider provider)
+                (eam-session-list--render)
+                (cl-letf (((symbol-function 'eam-terminal-start-provider)
+                           (lambda (&rest args) (push args calls)))
+                          ((symbol-function 'eam-resume)
+                           (lambda (&rest _) (ert-fail "Must start a fresh conversation")))
+                          ((symbol-function 'eam-session-list--ack)
+                           (lambda (&rest _) (ert-fail "Must not acknowledge the old session"))))
+                  (call-interactively (key-binding (kbd "N"))))
+                (should (equal calls (list (list provider directory))))
+                (should (equal (alist-get 'name entry) "Old name"))))))
+      (delete-directory directory))))
+
+(ert-deftest eam-list-new-rejects-non-session-rows-and-unavailable-directories ()
+  (with-temp-buffer
+    (eam-session-list-mode)
+    (setq eam-session-list--sort 'activity)
+    (eam-session-list--render)
+    (cl-letf (((symbol-function 'eam-terminal-start-provider)
+               (lambda (&rest _) (ert-fail "Must not start a CLI"))))
+      (should-error (call-interactively (key-binding (kbd "N"))) :type 'user-error)
+      (dolist (directory (list nil "" "relative/path"
+                              (make-temp-name (expand-file-name "eam-missing-" temporary-file-directory))
+                              "/ssh:example:/tmp/project"))
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert (propertize "session\n" 'eam-session
+                              `((provider . "Codex") (directory . ,directory))))
+          (goto-char (point-min)))
+        (should-error (eam-session-list-new) :type 'user-error)))))
+
 (ert-deftest eam-list-prefill-and-name-flow ()
   (let ((default-directory "/tmp/한글 프로젝트/") (insert-default-directory nil) calls)
     (cl-letf (((symbol-function 'eam--read-provider) (lambda () "Codex"))
