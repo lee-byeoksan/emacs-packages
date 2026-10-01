@@ -24,23 +24,44 @@
                       eam-session-list--group group
                       eam-session-list--provider provider)
                 (eam-session-list--render)
-                (cl-letf (((symbol-function 'eam-terminal-start-provider)
+                (cl-letf (((symbol-function 'eam--read-provider)
+                           (lambda () (if (equal provider "Codex") "Claude" "Codex")))
+                          ((symbol-function 'eam-terminal-start-provider)
                            (lambda (&rest args) (push args calls)))
                           ((symbol-function 'eam-resume)
                            (lambda (&rest _) (ert-fail "Must start a fresh conversation")))
                           ((symbol-function 'eam-session-list--ack)
                            (lambda (&rest _) (ert-fail "Must not acknowledge the old session"))))
                   (call-interactively (key-binding (kbd "N"))))
-                (should (equal calls (list (list provider directory))))
+                (should (equal calls (list (list (if (equal provider "Codex") "Claude" "Codex")
+                                                directory))))
                 (should (equal (alist-get 'name entry) "Old name"))))))
       (delete-directory directory))))
+
+(ert-deftest eam-list-new-provider-cancel-does-not-start ()
+  (with-temp-buffer
+    (eam-session-list-mode)
+    (let ((inhibit-read-only t))
+      (insert (propertize "session\n" 'eam-session
+                          (eam-list-test-entry "old" temporary-file-directory "Old" 20)))
+      (goto-char (point-min)))
+    (cl-letf (((symbol-function 'eam--read-provider)
+               (lambda () (signal 'quit nil)))
+              ((symbol-function 'eam-terminal-start-provider)
+               (lambda (&rest _) (ert-fail "Must not start after cancellation"))))
+      (should (eq 'cancelled
+                  (condition-case nil
+                      (progn (call-interactively (key-binding (kbd "N"))) 'started)
+                    (quit 'cancelled)))))))
 
 (ert-deftest eam-list-new-rejects-non-session-rows-and-unavailable-directories ()
   (with-temp-buffer
     (eam-session-list-mode)
     (setq eam-session-list--sort 'activity)
     (eam-session-list--render)
-    (cl-letf (((symbol-function 'eam-terminal-start-provider)
+    (cl-letf (((symbol-function 'eam--read-provider)
+               (lambda () (ert-fail "Validate the row before prompting")))
+              ((symbol-function 'eam-terminal-start-provider)
                (lambda (&rest _) (ert-fail "Must not start a CLI"))))
       (should-error (call-interactively (key-binding (kbd "N"))) :type 'user-error)
       (dolist (directory (list nil "" "relative/path"

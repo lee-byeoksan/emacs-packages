@@ -55,7 +55,7 @@
   "Move to the previous session row."
   (eam-session-list--move -1))
 (defun eam-session-list-new ()
-  "Start a fresh session with the selected row's provider and directory.
+  "Choose a provider and start a fresh session in the selected row's directory.
 Do not copy its name, conversation, or temporary-session lifecycle."
   (interactive)
   (let* ((entry (or (eam-session-list--at-point)
@@ -64,7 +64,8 @@ Do not copy its name, conversation, or temporary-session lifecycle."
     (unless (and (stringp directory) (file-name-absolute-p directory)
                  (not (file-remote-p directory)) (file-directory-p directory))
       (user-error "Session working directory is unavailable: %s" directory))
-    (eam-terminal-start-provider (alist-get 'provider entry) directory)))
+    (let ((use-dialog-box nil))
+      (eam-terminal-start-provider (eam--read-provider) directory))))
 (defun eam-session-list--path (entry)
   (alist-get 'session entry))
 (defun eam-session-list--directory (entry)
