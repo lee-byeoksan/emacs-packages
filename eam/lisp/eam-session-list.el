@@ -39,6 +39,40 @@
 (defvar-local eam-session-list--provider nil)
 (defvar-local eam-session-list--unknown 0)
 (defvar-local eam-session-list--checked-at nil)
+(defcustom eam-session-list-refresh-interval 5
+  "Seconds between automatic refreshes of visible session lists.
+Nil disables automatic refresh.  Reopen the list after changing the interval.
+Refresh is deferred while the minibuffer is active or input is pending."
+  :type '(choice (const :tag "Disabled" nil) (number :tag "Seconds"))
+  :group 'eam)
+(defvar-local eam-session-list--timer nil)
+(defvar-local eam-session-list--refreshing nil)
+
+(defun eam-session-list--stop-timer ()
+  "Cancel this buffer's automatic refresh timer."
+  (when (timerp eam-session-list--timer)
+    (cancel-timer eam-session-list--timer))
+  (setq eam-session-list--timer nil))
+(defun eam-session-list--start-timer ()
+  "Replace this buffer's timer using the configured interval."
+  (eam-session-list--stop-timer)
+  (when (and (numberp eam-session-list-refresh-interval)
+             (> eam-session-list-refresh-interval 0))
+    (setq eam-session-list--timer
+          (run-at-time eam-session-list-refresh-interval
+                       eam-session-list-refresh-interval
+                       #'eam-session-list--auto-refresh (current-buffer)))))
+(defun eam-session-list--auto-refresh (buffer)
+  "Refresh BUFFER only while visible and without interrupting a prompt."
+  (when (and (buffer-live-p buffer) (get-buffer-window buffer t)
+             (not (active-minibuffer-window)) (not (input-pending-p)))
+    (with-current-buffer buffer
+      (when (and (derived-mode-p 'eam-session-list-mode)
+                 eam-session-list-refresh-interval
+                 (not eam-session-list--refreshing))
+        (condition-case err
+            (eam-session-list--refresh)
+          (error (message "EAM session refresh failed: %s" (error-message-string err))))))))
 
 (defun eam-session-list--at-point ()
   (get-text-property (line-beginning-position) 'eam-session))
@@ -240,11 +274,22 @@ Do not copy its name, conversation, or temporary-session lifecycle."
       (goto-char (or found first (point-min))))
     (set-buffer-modified-p nil)))
 (defun eam-session-list--refresh ()
-  (let ((inventory (eam-app--live-inventory t)))
-    (setq eam-session-list--entries (alist-get 'sessions inventory)
-          eam-session-list--checked-at (float-time)
-          eam-session-list--unknown (length (alist-get 'unverified inventory)))
-    (eam-session-list--render)))
+  (unless eam-session-list--refreshing
+    (let* ((eam-session-list--refreshing t)
+           (windows (mapcar (lambda (window)
+                              (cons window (line-number-at-pos (window-start window))))
+                            (get-buffer-window-list (current-buffer) nil t)))
+           (inventory (eam-app--live-inventory t)))
+      (setq eam-session-list--entries (alist-get 'sessions inventory)
+            eam-session-list--checked-at (float-time)
+            eam-session-list--unknown (length (alist-get 'unverified inventory)))
+      (eam-session-list--render)
+      (dolist (entry windows)
+        (when (window-live-p (car entry))
+          (save-excursion
+            (goto-char (point-min))
+            (forward-line (1- (cdr entry)))
+            (set-window-start (car entry) (point) t)))))))
 (defun eam-session-list--ack (entry)
   "Acknowledge only the snapshot sequence, leaving later events unread."
   (let ((seq (alist-get 'seq (alist-get 'notifications entry))))
@@ -408,6 +453,8 @@ Do not copy its name, conversation, or temporary-session lifecycle."
                            ("r" . "rename") ("i" . "details") ("j" . "note") ("m" . "read") ("t" . "group")
                            ("f" . "detached") ("v" . "provider") ("q" . "close")) "  ·  ")))
   (hl-line-mode 1)
+  (add-hook 'kill-buffer-hook #'eam-session-list--stop-timer nil t)
+  (add-hook 'change-major-mode-hook #'eam-session-list--stop-timer nil t)
   (buffer-disable-undo))
 (put 'eam-session-list-mode 'completion-predicate #'ignore)
 ;;;###autoload
@@ -422,6 +469,7 @@ Do not copy its name, conversation, or temporary-session lifecycle."
       (setq eam-session-list--sort eam-session-sort-order
             eam-session-list--group eam-session-group-by-directory))
     (setq default-directory directory eam-session-list--detached detached-only)
+    (eam-session-list--start-timer)
     (eam-session-list--refresh)))
 (declare-function eam-app--live-inventory "eam-app" ())
 (provide 'eam-session-list)
