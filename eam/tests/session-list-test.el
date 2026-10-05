@@ -38,6 +38,32 @@
                 (should (equal (alist-get 'name entry) "Old name"))))))
       (delete-directory directory))))
 
+(ert-deftest eam-list-resume-opens-chosen-provider-picker-in-row-directory ()
+  (let ((directory (make-temp-file "eam-resume-한글 " t)))
+    (unwind-protect
+        (dolist (provider '("Codex" "Claude"))
+          (with-temp-buffer
+            (eam-session-list-mode)
+            (let ((entry (eam-list-test-entry "old" directory "Old" 20 t)) calls)
+              (setf (alist-get 'provider entry) (if (equal provider "Codex") "Claude" "Codex")
+                    (alist-get 'resume_id entry) "old-conversation")
+              (setq eam-session-list--entries (list entry)
+                    eam-session-list--sort 'activity
+                    eam-session-list--group t)
+              (eam-session-list--render)
+              (cl-letf (((symbol-function 'eam--read-provider) (lambda () provider))
+                        ((symbol-function 'eam-persistent--start)
+                         (lambda (&rest args)
+                           (push args calls)
+                           (eam-terminal--session)))
+                        ((symbol-function 'eam-session-list--ack)
+                         (lambda (&rest _) (ert-fail "Must not acknowledge the selected session"))))
+                (call-interactively (key-binding (kbd "R"))))
+              (should (equal calls
+                             (list (list provider directory
+                                         (if (equal provider "Claude") '("--resume") '("resume")))))))))
+      (delete-directory directory))))
+
 (ert-deftest eam-list-new-provider-cancel-does-not-start ()
   (with-temp-buffer
     (eam-session-list-mode)
@@ -48,11 +74,14 @@
     (cl-letf (((symbol-function 'eam--read-provider)
                (lambda () (signal 'quit nil)))
               ((symbol-function 'eam-terminal-start-provider)
-               (lambda (&rest _) (ert-fail "Must not start after cancellation"))))
-      (should (eq 'cancelled
-                  (condition-case nil
-                      (progn (call-interactively (key-binding (kbd "N"))) 'started)
-                    (quit 'cancelled)))))))
+               (lambda (&rest _) (ert-fail "Must not start after cancellation")))
+              ((symbol-function 'eam-resume)
+               (lambda (&rest _) (ert-fail "Must not resume after cancellation"))))
+      (dolist (key '("N" "R"))
+        (should (eq 'cancelled
+                    (condition-case nil
+                        (progn (call-interactively (key-binding (kbd key))) 'started)
+                      (quit 'cancelled))))))))
 
 (ert-deftest eam-list-new-rejects-non-session-rows-and-unavailable-directories ()
   (with-temp-buffer
@@ -64,6 +93,7 @@
               ((symbol-function 'eam-terminal-start-provider)
                (lambda (&rest _) (ert-fail "Must not start a CLI"))))
       (should-error (call-interactively (key-binding (kbd "N"))) :type 'user-error)
+      (should-error (call-interactively (key-binding (kbd "R"))) :type 'user-error)
       (dolist (directory (list nil "" "relative/path"
                               (make-temp-name (expand-file-name "eam-missing-" temporary-file-directory))
                               "/ssh:example:/tmp/project"))
@@ -72,7 +102,8 @@
           (insert (propertize "session\n" 'eam-session
                               `((provider . "Codex") (directory . ,directory))))
           (goto-char (point-min)))
-        (should-error (eam-session-list-new) :type 'user-error)))))
+        (should-error (eam-session-list-new) :type 'user-error)
+        (should-error (eam-session-list-resume) :type 'user-error)))))
 
 (ert-deftest eam-list-prefill-and-name-flow ()
   (let ((default-directory "/tmp/한글 프로젝트/") (insert-default-directory nil) calls)

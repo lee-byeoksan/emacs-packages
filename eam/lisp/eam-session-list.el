@@ -54,18 +54,28 @@
 (defun eam-session-list--previous ()
   "Move to the previous session row."
   (eam-session-list--move -1))
-(defun eam-session-list-new ()
-  "Choose a provider and start a fresh session in the selected row's directory.
-Do not copy its name, conversation, or temporary-session lifecycle."
-  (interactive)
+(defun eam-session-list--selected-directory ()
+  "Return the selected row's working directory, checking it is available."
   (let* ((entry (or (eam-session-list--at-point)
                     (user-error "Select a session row")))
          (directory (alist-get 'directory entry)))
     (unless (and (stringp directory) (file-name-absolute-p directory)
                  (not (file-remote-p directory)) (file-directory-p directory))
       (user-error "Session working directory is unavailable: %s" directory))
-    (let ((use-dialog-box nil))
-      (eam-terminal-start-provider (eam--read-provider) directory))))
+    directory))
+(defun eam-session-list-new ()
+  "Choose a provider and start a fresh session in the selected row's directory.
+Do not copy its name, conversation, or temporary-session lifecycle."
+  (interactive)
+  (let ((directory (eam-session-list--selected-directory))
+        (use-dialog-box nil))
+    (eam-terminal-start-provider (eam--read-provider) directory)))
+(defun eam-session-list-resume ()
+  "Choose a provider and open its resume picker in the selected row's directory."
+  (interactive)
+  (let ((directory (eam-session-list--selected-directory))
+        (use-dialog-box nil))
+    (eam-resume (eam--read-provider) directory)))
 (defun eam-session-list--path (entry)
   (alist-get 'session entry))
 (defun eam-session-list--directory (entry)
@@ -367,6 +377,7 @@ Do not copy its name, conversation, or temporary-session lifecycle."
     (define-key map (kbd "n") (lambda () (interactive) (eam-session-list--next)))
     (define-key map (kbd "p") (lambda () (interactive) (eam-session-list--previous)))
     (define-key map (kbd "N") #'eam-session-list-new)
+    (define-key map (kbd "R") #'eam-session-list-resume)
     (define-key map (kbd "RET") (lambda () (interactive) (eam-session-list--open)))
     (define-key map (kbd "g") (lambda () (interactive) (eam-session-list--refresh)))
     (define-key map (kbd "s") (lambda () (interactive) (eam-session-list--sort-select)))
@@ -393,7 +404,7 @@ Do not copy its name, conversation, or temporary-session lifecycle."
                          (lambda (binding)
                            (concat (propertize (car binding) 'face 'help-key-binding)
                                    " " (cdr binding)))
-                         '(("n/p" . "next/previous") ("RET" . "open/resume") ("N" . "new here") ("g" . "refresh") ("s" . "sort")
+                         '(("n/p" . "next/previous") ("RET" . "open/resume") ("N" . "new here") ("R" . "resume here") ("g" . "refresh") ("s" . "sort")
                            ("r" . "rename") ("i" . "details") ("j" . "note") ("m" . "read") ("t" . "group")
                            ("f" . "detached") ("v" . "provider") ("q" . "close")) "  ·  ")))
   (hl-line-mode 1)
