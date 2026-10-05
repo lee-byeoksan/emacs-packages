@@ -39,7 +39,7 @@
 (defvar-local eam-session-list--provider nil)
 (defvar-local eam-session-list--unknown 0)
 (defvar-local eam-session-list--checked-at nil)
-(defcustom eam-session-list-refresh-interval 5
+(defcustom eam-session-list-refresh-interval 10
   "Seconds between automatic refreshes of visible session lists.
 Nil disables automatic refresh.  Reopen the list after changing the interval.
 Refresh is deferred while the minibuffer is active or input is pending."
